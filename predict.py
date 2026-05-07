@@ -1,74 +1,90 @@
-# import os
-# os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-import numpy as np  
-import tensorflow as tf
+import numpy as np
+from PIL import Image
+import streamlit as st
+ 
+# These imports assume the CNN source files are in the same directory
 from denselayer import Layer_Dense
 from ConvolutionLayer import Convolution
 from Relu import ReLu_Activation
 from maxpool import MaxPool
 from flatten_layer import Flatten
-from PIL import Image
-
-convolution1 = Convolution(num_filters=8, filter_size=3, input_depth=1, stride=1, padding=1)
-convolution2 = Convolution(num_filters=16, filter_size=3, input_depth=8, stride=1, padding=1)
-relu1 = ReLu_Activation()
-relu2 = ReLu_Activation()
-maxpool1 = MaxPool(pool_size=2, stride=2)
-maxpool2 = MaxPool(pool_size=2, stride=2)
-flatten1 = Flatten()
-dummy_input = np.random.randn(1, 1, 28, 28)
-conv_out = convolution1.forward(dummy_input)
-relu_out = relu1.forward(conv_out)
-pool_out = maxpool1.forward(relu_out)
-conv2_out = convolution2.forward(pool_out)
-relu2_out = relu2.forward(conv2_out)
-pool2_out = maxpool2.forward(relu2_out)
-flat_out = flatten1.forward(pool2_out)
-n_inputs = flat_out.shape[1]
-hidden_dense = Layer_Dense(n_inputs, n_neurons=64)  
-dense1 = Layer_Dense(64, n_neurons=10)
-
-print("loading model...")
-model_data = np.load('mnist_model.npz')
-convolution1.filter = model_data['conv1_filters']
-convolution1.biases = model_data['conv1_biases']
-convolution2.filter = model_data['conv2_filters']
-convolution2.biases = model_data['conv2_biases']
-dense1.weights = model_data['dense1_weights']
-dense1.biases = model_data['dense1_biases']
-hidden_dense.weights = model_data['hidden_dense_weights']
-hidden_dense.biases = model_data['hidden_dense_biases']
-print("Model loaded successfully.")
-
-def preprocess_image(image_path):
-    img = Image.open(image_path).convert('L')
-    img = img.resize((28, 28))
-    img_array = np.array(img).astype(np.float32) / 255.0
-    img_array = img_array.reshape(-1, 1, 28, 28)
-    img_array = 1 - img_array
-    return img_array
-  
-
+ 
+ 
+@st.cache_resource
+def load_model():
+    """Initialize architecture and load trained weights. Cached so it runs once."""
+    convolution1 = Convolution(num_filters=8,  filter_size=3, input_depth=1,  stride=1, padding=1)
+    convolution2 = Convolution(num_filters=16, filter_size=3, input_depth=8,  stride=1, padding=1)
+    relu1    = ReLu_Activation()
+    relu2    = ReLu_Activation()
+    maxpool1 = MaxPool(pool_size=2, stride=2)
+    maxpool2 = MaxPool(pool_size=2, stride=2)
+    flatten1 = Flatten()
+ 
+    # Dummy forward pass to infer dense layer input size
+    dummy = np.random.randn(1, 1, 28, 28)
+    flat_out = flatten1.forward(
+        maxpool2.forward(
+            relu2.forward(
+                convolution2.forward(
+                    maxpool1.forward(
+                        relu1.forward(
+                            convolution1.forward(dummy)
+                        )
+                    )
+                )
+            )
+        )
+    )
+    n_inputs = flat_out.shape[1]
+    hidden_dense = Layer_Dense(n_inputs, n_neurons=64)
+    dense1       = Layer_Dense(64, n_neurons=10)
+ 
+    # Load weights
+    data = np.load('mnist_model.npz')
+    convolution1.filter  = data['conv1_filters']
+    convolution1.biases  = data['conv1_biases']
+    convolution2.filter  = data['conv2_filters']
+    convolution2.biases  = data['conv2_biases']
+    hidden_dense.weights = data['hidden_dense_weights']
+    hidden_dense.biases  = data['hidden_dense_biases']
+    dense1.weights       = data['dense1_weights']
+    dense1.biases        = data['dense1_biases']
+ 
+    return convolution1, relu1, maxpool1, convolution2, relu2, maxpool2, flatten1, hidden_dense, dense1
+ 
+ 
 def softmax(x):
-    exp_values = np.exp(x - np.max(x, axis=1, keepdims=True))
-    probabilities = exp_values / np.sum(exp_values, axis=1, keepdims=True)
-    return probabilities
-
-image_path = r'images\1002.png'
-conv_output = convolution1.forward(preprocess_image(image_path))
-relu_output = relu1.forward(conv_output)
-pool_output = maxpool1.forward(relu_output)
-conv_2 = convolution2.forward(pool_output)
-relu_output2 = relu2.forward(conv_2)
-pool_output2 = maxpool2.forward(relu_output2)
-flat_output = flatten1.forward(pool_output2)
-dense_output_hidden = hidden_dense.forward(flat_output)
-dense_output = dense1.forward(dense_output_hidden)
-probability = softmax(dense_output)
-predictions = np.argmax(probability, axis=1)
-for i, p in enumerate(probability[0]):
-    print(f"Class {i}: {p*100:.2f}%")
-print(f"Predicted class for the input image: {predictions[0]}")
+    e = np.exp(x - np.max(x, axis=1, keepdims=True))
+    return e / e.sum(axis=1, keepdims=True)
+ 
+ 
+def preprocess(img: Image.Image) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Returns:
+        processed  : (1, 1, 28, 28) float32 array ready for inference
+        thumb      : (28, 28) uint8 array for display
+    """
+    img = img.convert('L').resize((28, 28), Image.LANCZOS)
+    arr = np.array(img).astype(np.float32) / 255.0
+    arr = 1.0 - arr                             # invert: model trained on white-on-black
+    thumb = (arr * 255).astype(np.uint8)
+    return arr.reshape(1, 1, 28, 28), thumb
+ 
+ 
+def predict(img_array: np.ndarray) -> np.ndarray:
+    """Run forward pass, return (10,) probability array."""
+    conv1, relu1, pool1, conv2, relu2, pool2, flat, hidden, out = load_model()
+    x = conv1.forward(img_array)
+    x = relu1.forward(x)
+    x = pool1.forward(x)
+    x = conv2.forward(x)
+    x = relu2.forward(x)
+    x = pool2.forward(x)
+    x = flat.forward(x)
+    x = hidden.forward(x)
+    x = out.forward(x)
+    return softmax(x)[0]          # shape (10,)
 
 
 

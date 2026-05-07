@@ -22,6 +22,7 @@ convolution1 = Convolution(num_filters=8, filter_size=3, input_depth=1, stride=1
 convolution2 = Convolution(num_filters=16, filter_size=3, input_depth=8, stride=1, padding=1)
 relu1 = ReLu_Activation()
 relu2 = ReLu_Activation()
+relu3 = ReLu_Activation()
 maxpool1 = MaxPool(pool_size=2, stride=2)
 maxpool2 = MaxPool(pool_size=2, stride=2)
 flatten1 = Flatten()
@@ -73,7 +74,8 @@ for epoch in range(epochs):
         flat_output = flatten1.forward(pool2)
         #print("Flat output min/max:", flat_output.min(), flat_output.max())
         dense_output_hidden = hidden_dense.forward(flat_output)
-        dense_output = dense1.forward(dense_output_hidden)
+        relu_hidden_out = relu3.forward(dense_output_hidden)
+        dense_output = dense1.forward(relu_hidden_out)
         #print("Dense output min/max:", dense_output.min(), dense_output.max())
         softmax_Loss = softmax1.forward(dense_output, Y_batch)
         epoch_Loss += softmax_Loss
@@ -83,7 +85,8 @@ for epoch in range(epochs):
         # Backward pass
         dvalues = softmax1.backward(softmax1.output, Y_batch)
         d_dense = dense1.backward(dvalues)
-        d_hidden_dense = hidden_dense.backward(d_dense)
+        d_relu_hidden = relu3.backward(d_dense)
+        d_hidden_dense = hidden_dense.backward(d_relu_hidden)
         d_flat = flatten1.backward(d_hidden_dense)
         d_pool2 = maxpool2.backward(d_flat)
         d_relu2 = relu2.backward(d_pool2)
