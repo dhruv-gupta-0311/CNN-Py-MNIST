@@ -1,65 +1,104 @@
-CNN-Py-MNIST 
-A convolutional neural network built from scratch in Python/NumPy for handwritten digit recognition (MNIST).
+# CNN-Py-MNIST
 
-Overview:
+A convolutional neural network built entirely from scratch in NumPy — no PyTorch, no TensorFlow, no ML framework of any kind. Implements forward and backward propagation manually for every layer, trained on the MNIST handwritten digit dataset.
 
-Implements a CNN architecture using only NumPy (no high-level deep learning libraries) for educational purposes.
+---
 
-Demonstrates key deep learning concepts: convolutional layers, pooling, activation functions, flattening, dense layers, forward/backward propagation, cross-entropy loss, and optimization.
+## Architecture
 
-Project originally built for the MNIST dataset and later extended for potential civic-issue image identification.
+```
+Input (1×28×28)
+  → Conv2D (8 filters, 3×3, padding=1)  → ReLU  → MaxPool (2×2)
+  → Conv2D (16 filters, 3×3, padding=1) → ReLU  → MaxPool (2×2)
+  → Flatten
+  → Dense (392 → 64)                    → ReLU
+  → Dense (64 → 10)
+  → Softmax + Cross-Entropy Loss
+```
 
-Features:
+Each layer is implemented as a standalone module with explicit forward and backward passes. Gradients are computed analytically — no autograd.
 
--> Custom built layers: Convolution, MaxPooling, Dense (fully connected).
+---
 
--> Activation functions: ReLU, Softmax.
+## Project Structure
 
--> Loss function: Categorical Cross-Entropy.
+```
+CNN-Py-MNIST/
+├── ConvolutionLayer.py   # Conv2D forward & backward (stride, padding support)
+├── maxpool.py            # MaxPool forward & backward
+├── flatten_layer.py      # Flatten forward & backward
+├── denselayer.py         # Fully-connected layer forward & backward
+├── Relu.py               # ReLU activation forward & backward
+├── Softmax_Loss.py       # Softmax + categorical cross-entropy (fused for numerical stability)
+├── load_dataset.py       # MNIST loader from raw IDX binary format (no dataset library)
+├── training.py           # Training loop with mini-batch SGD
+├── predict.py            # Inference module (imported by app.py)
+├── app.py                # Streamlit UI — drawable canvas + file upload
+└── requirements.txt      # numpy, streamlit, streamlit-drawable-canvas, pillow
+```
 
--> Training loop with manual weight & bias updates.
+---
 
--> Prediction script to infer digit class from image input.
+## Running the App
 
--> Simple preprocessing pipeline: normalization and reshaping.
+```bash
+git clone https://github.com/dhruv-gupta-0311/CNN-Py-MNIST
+cd CNN-Py-MNIST
+python -m venv venv
+venv\Scripts\activate        # Windows
+pip install -r requirements.txt
+streamlit run app.py
+```
 
-Usage:
+The app lets you draw a digit on a canvas or upload an image. It shows the prediction, confidence score, and a probability breakdown across all 10 classes.
 
--> Pre-installed Python, TensorFlow, MNIST dataset, NumPy.
+---
 
--> For training set Learning rate, Epoches, Batch size.
+## Training From Scratch
 
--> Parameters after training stored in npz file.
+```bash
+python training.py
+```
 
--> For prediction, load predict.py.
+Hyperparameters (configurable at the top of `training.py`):
 
--> The script loads image, preprocess it, then output the predicted class with accuracy/probability.
+| Parameter     | Default |
+|---------------|---------|
+| Learning rate | 1e-3    |
+| Epochs        | 20      |
+| Batch size    | 32      |
+| Training samples | 10,000 |
 
-Project Architecture:
+MNIST is downloaded automatically on first run into `mnist_data/` directly from the IDX binary source — no dataset library required.
 
-ConvolutionLayer.py – convolution layer implementation (forward & backward).
+Trained weights are saved to `mnist_model.npz` after training completes.
 
-maxpool.py – max-pooling layer implementation.(Takes a 2x2 tensor and only maximum value is output)
+---
 
-flatten_layer.py – flattening layer.
+## Known Limitations
 
-denselayer.py – fully-connected (dense) layer.()
+- **Trained on 10,000 of 60,000 available samples** due to local compute constraints. Accuracy is functional but below what full training achieves. To train on the full dataset, remove the slicing in `training.py`:
+  ```python
+  # Change this:
+  X_train_small = X_train[:10000]
+  # To this:
+  X_train_small = X_train
+  ```
+- **No optimizer beyond vanilla SGD.** Momentum or Adam would improve convergence speed and final accuracy.
+- **Canvas-drawn digits** may have lower accuracy than clean scanned images due to stroke thickness and centering differences from the training distribution.
 
-Relu.py – ReLU activation implementation.(returns [0 when x -ve, x +ve]; where x is the value inputed)
+---
 
-Softmax_Loss.py – Softmax activation combined with cross-entropy loss.(Calculate probability, loss by taking dense layer output)
+## Implementation Notes
 
-train.py – main training loop script.
+Backpropagation is implemented manually for every layer. The conv layer computes gradients with respect to filters, biases, and inputs using explicit loop-based correlation. MaxPool backward routes gradients only through the positions that held the maximum value in the forward pass. The Softmax and cross-entropy loss are fused into a single layer to avoid numerical instability from computing them separately.
 
-predict.py – image inference script.
+MNIST data is loaded by reading the raw IDX binary format directly using `numpy.frombuffer` — the image file header is 16 bytes, label file header is 8 bytes, everything after is raw data.
 
-mnist_model.npz – example saved model weights 
+---
 
-images/ – sample digit or additional test images.
+## Future Work
 
-Future Work
-
-Extend to civic issue detection (potholes, garbage, broken streetlights) using a real-world dataset.
-
-
-
+- Train on full 60k sample set (compute bottleneck only)
+- Add momentum or Adam optimiser
+- Extend to civic issue detection (potholes, garbage, broken streetlights) using a real-world image dataset
