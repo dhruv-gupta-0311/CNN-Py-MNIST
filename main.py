@@ -1,17 +1,15 @@
 import os
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import numpy as np
-import tensorflow as tf
 from denselayer import Layer_Dense
 from ConvolutionLayer import Convolution
-
 from Relu import ReLu_Activation
 from Softmax_Loss import SoftMax_Crossentropy
 from maxpool import MaxPool
 from flatten_layer import Flatten
+from load_dataset import load_mnist
 
 
-(X_train, Y_train), (X_test, Y_test) = tf.keras.datasets.mnist.load_data()
+(X_train, Y_train), (X_test, Y_test) = load_mnist()
 X_train = X_train.astype(np.float32) / 255.0
 X_test = X_test.astype(np.float32) / 255.0
 X_train = X_train.reshape(-1, 1, 28, 28)

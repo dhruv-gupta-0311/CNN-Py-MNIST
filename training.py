@@ -1,20 +1,18 @@
 import os
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ["OMP_NUM_THREADS"] = "8"      # number of CPU threads
 os.environ["OPENBLAS_NUM_THREADS"] = "8"
 os.environ["MKL_NUM_THREADS"] = "8"
 os.environ["NUMEXPR_NUM_THREADS"] = "8"
 import numpy as np
-import tensorflow as tf
 from denselayer import Layer_Dense
 from ConvolutionLayer import Convolution
 from Relu import ReLu_Activation
 from Softmax_Loss import SoftMax_Crossentropy
 from maxpool import MaxPool
 from flatten_layer import Flatten
+from load_dataset import load_mnist
 
-
-(X_train, Y_train), (X_test, Y_test) = tf.keras.datasets.mnist.load_data()
+(X_train, Y_train), (X_test, Y_test) = load_mnist()
 X_train = X_train.astype(np.float32) / 255.0
 X_test = X_test.astype(np.float32) / 255.0
 X_train = X_train.reshape(-1, 1, 28, 28)
@@ -93,16 +91,6 @@ for epoch in range(epochs):
         d_pool = maxpool1.backward(d_conv2)
         d_relu = relu1.backward(d_pool)
         d_conv = convolution1.backward(d_relu)
-        # print(f"\n--- Batch {i//batch_size + 1} ---")
-        # print(f"Loss for this batch: {epoch_Loss:.4f}")
-
-        # # 1. Check the output of the final layer BEFORE softmax
-        # print(f"Dense Output Stats -> Min: {dense_output.min():.6f}, Max: {dense_output.max():.6f}, Mean: {dense_output.mean():.6f}")
-
-        # # 2. Check the gradients calculated for the weights and filters
-        # print(f"Dense dWeights Stats -> Min: {dense1.dweights.min():.6f}, Max: {dense1.dweights.max():.6f}, Mean: {dense1.dweights.mean():.6f}")
-        # print(f"Conv. dFilters Stats -> Min: {convolution1.dfilters.min():.6f}, Max: {convolution1.dfilters.max():.6f}, Mean: {convolution1.dfilters.mean():.6f}")
-        # Update weights and biases
         dense1.weights -= learning_rate * dense1.dweights
         hidden_dense.weights -= learning_rate * hidden_dense.dweights
         dense1.biases -= learning_rate * dense1.dbiases
